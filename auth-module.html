@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Auth Module — Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- ═══════════════════════════════════════════════════════════
+       AUTH MODULE CSS  —  kopiere diesen <style>-Block in dein Projekt
+       ═══════════════════════════════════════════════════════════ -->
+  <style id="auth-module-styles">
+    /* ── Tokens ── */
+    :root {
+      --auth-bg:        #0c0c0e;
+      --auth-surface:   #141418;
+      --auth-border:    #2a2a32;
+      --auth-accent:    #7a9ab5;
+      --auth-accent2:   #96b4cc;
+      --auth-text:      #f0ede8;
+      --auth-muted:     #7a7880;
+      --auth-error:     #e07070;
+      --auth-success:   #6ecaa0;
+      --auth-radius:    4px;
+      --auth-font-head: 'DM Serif Display', Georgia, serif;
+      --auth-font-body: 'DM Sans', system-ui, sans-serif;
+    }
+
+    /* ── Overlay wrapper ── */
+    #auth-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--auth-bg);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--auth-font-body);
+      overflow-y: auto;
+      padding: 24px;
+      opacity: 1;
+      transition: opacity .4s ease;
+    }
+    #auth-overlay.auth-hidden { opacity: 0; pointer-events: none; }
+
+    /* ── Decorative background grid ── */
+    #auth-overlay::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(122,154,181,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(122,154,181,.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    /* ── Card ── */
+    .auth-card {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 440px;
+      background: var(--auth-surface);
+      border: 1px solid var(--auth-border);
+      border-radius: 2px;
+      padding: 48px 44px 44px;
+      box-shadow: 0 0 80px rgba(0,0,0,.6), 0 0 0 1px rgba(122,154,181,.06) inset;
+      animation: authCardIn .5s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes authCardIn {
+      from { opacity:0; transform: translateY(20px) scale(.98); }
+      to   { opacity:1; transform: translateY(0)   scale(1);    }
+    }
+
+    /* ── Corner accent ── */
+    .auth-card::before {
+      content: '';
+      position: absolute; top: -1px; left: -1px;
+      width: 48px; height: 48px;
+      border-top: 2px solid var(--auth-accent);
+      border-left: 2px solid var(--auth-accent);
+      border-radius: 2px 0 0 0;
+    }
+    .auth-card::after {
+      content: '';
+      position: absolute; bottom: -1px; right: -1px;
+      width: 48px; height: 48px;
+      border-bottom: 2px solid var(--auth-accent);
+      border-right: 2px solid var(--auth-accent);
+      border-radius: 0 0 2px 0;
+    }
+
+    /* ── Logo / title ── */
+    .auth-logo {
+      font-family: var(--auth-font-head);
+      font-size: 28px;
+      color: var(--auth-text);
+      margin: 0 0 4px;
+      letter-spacing: .01em;
+    }
+    .auth-logo span { color: var(--auth-accent); font-style: italic; }
+    .auth-subtitle {
+      font-size: 13px;
+      color: var(--auth-muted);
+      margin: 0 0 36px;
+      font-weight: 300;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    /* ── Tab switcher ── */
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--auth-border);
+    }
+    .auth-tab {
+      flex: 1;
+      background: none; border: none; cursor: pointer;
+      padding: 10px 0 12px;
+      font-family: var(--auth-font-body);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--auth-muted);
+      position: relative;
+      transition: color .25s;
+    }
+    .auth-tab::after {
+      content: '';
+      position: absolute; bottom: -1px; left: 0; right: 0;
+      height: 2px; background: var(--auth-accent);
+      transform: scaleX(0);
+      transition: transform .25s cubic-bezier(.22,1,.36,1);
+    }
+    .auth-tab.active { color: var(--auth-accent); }
+    .auth-tab.active::after { transform: scaleX(1); }
+
+    /* ── Form panels ── */
+    .auth-panel { display: none; }
+    .auth-panel.active {
+      display: block;
+      animation: authPanelIn .3s ease both;
+    }
+    @keyframes authPanelIn {
+      from { opacity:0; transform: translateX(8px); }
+      to   { opacity:1; transform: translateX(0); }
+    }
+
+    /* ── Field groups ── */
+    .auth-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .auth-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .auth-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--auth-muted);
+    }
+    .auth-input {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--auth-border);
+      border-radius: var(--auth-radius);
+      color: var(--auth-text);
+      font-family: var(--auth-font-body);
+      font-size: 15px;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+      width: 100%;
+      box-sizing: border-box;
+      -webkit-appearance: none;
+    }
+    .auth-input:focus {
+      border-color: var(--auth-accent);
+      background: rgba(122,154,181,.04);
+      box-shadow: 0 0 0 3px rgba(122,154,181,.12);
+    }
+    .auth-input.error { border-color: var(--auth-error) !important; }
+    .auth-input::placeholder { color: #3a383e; }
+
+    /* Date input fix */
+    .auth-input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(.4) sepia(1) hue-rotate(10deg);
+      cursor: pointer;
+      opacity: .5;
+    }
+    .auth-input[type="date"]::-webkit-inner-spin-button { display: none; }
+
+    /* Password wrapper */
+    .auth-pw-wrap { position: relative; }
+    .auth-pw-wrap .auth-input { padding-right: 42px; }
+    .auth-pw-toggle {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; padding: 4px;
+      color: var(--auth-muted); transition: color .2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .auth-pw-toggle:hover { color: var(--auth-accent); }
+
+    /* ── Field error text ── */
+    .auth-field-error {
+      font-size: 11px;
+      color: var(--auth-error);
+      margin-top: -10px;
+      margin-bottom: 6px;
+      display: none;
+    }
+    .auth-field-error.show { display: block; }
+
+    /* ── Global message ── */
+    .auth-message {
+      border-radius: var(--auth-radius);
+      padding: 11px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 18px;
+      display: none;
+      line-height: 1.5;
+    }
+    .auth-message.show { display: block; }
+    .auth-message.error  { background: rgba(224,112,112,.12); color: var(--auth-error);   border-left: 3px solid var(--auth-error); }
+    .auth-message.success{ background: rgba(110,202,160,.12); color: var(--auth-success); border-left: 3px solid var(--auth-success); }
+
+    /* ── Submit button ── */
+    .auth-btn {
+      width: 100%;
+      background: var(--auth-accent);
+      color: #0c0c0e;
+      border: none;
+      border-radius: var(--auth-radius);
+      font-family: var(--auth-font-body);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 14px;
+      cursor: pointer;
+      margin-top: 8px;
+      position: relative;
+      overflow: hidden;
+      transition: background .2s, transform .15s;
+    }
+    .auth-btn:hover { background: var(--auth-accent2); transform: translateY(-1px); }
+    .auth-btn:active { transform: translateY(0); }
+    .auth-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .auth-btn .auth-spinner {
+      display: none;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(12,12,14,.3);
+      border-top-color: #0c0c0e;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      margin: 0 auto;
+    }
+    .auth-btn.loading .auth-btn-text { display: none; }
+    .auth-btn.loading .auth-spinner   { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Hint under card ── */
+    .auth-hint {
+      text-align: center;
+      font-size: 12px;
+      color: var(--auth-muted);
+      margin-top: 28px;
+      letter-spacing: .02em;
+    }
+    .auth-hint a {
+      color: var(--auth-accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .auth-hint a:hover { text-decoration: underline; }
+
+    /* ── Logged-in state ── */
+    .auth-welcome {
+      text-align: center;
+      padding: 8px 0;
+    }
+    .auth-welcome-avatar {
+      width: 64px; height: 64px;
+      background: var(--auth-accent);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--auth-font-head);
+      font-size: 26px;
+      color: #0c0c0e;
+      margin: 0 auto 20px;
+    }
+    .auth-welcome h2 {
+      font-family: var(--auth-font-head);
+      font-size: 22px;
+      color: var(--auth-text);
+      margin: 0 0 6px;
+    }
+    .auth-welcome p {
+      font-size: 13px;
+      color: var(--auth-muted);
+      margin: 0 0 28px;
+    }
+    .auth-user-card {
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--auth-border);
+      border-radius: var(--auth-radius);
+      padding: 16px 18px;
+      text-align: left;
+      margin-bottom: 24px;
+    }
+    .auth-user-row {
+      display: flex; justify-content: space-between;
+      font-size: 13px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    .auth-user-row:last-child { border-bottom: none; }
+    .auth-user-key { color: var(--auth-muted); font-weight: 500; }
+    .auth-user-val { color: var(--auth-text); }
+    .auth-logout-btn {
+      width: 100%;
+      background: none;
+      border: 1px solid var(--auth-border);
+      border-radius: var(--auth-radius);
+      color: var(--auth-muted);
+      font-family: var(--auth-font-body);
+      font-size: 13px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .auth-logout-btn:hover { border-color: var(--auth-error); color: var(--auth-error); }
+
+    /* ── Divider ── */
+    .auth-divider {
+      border: none;
+      border-top: 1px solid var(--auth-border);
+      margin: 24px 0;
+    }
+    .auth-strength-wrap { margin-top: -8px; margin-bottom: 16px; }
+    .auth-strength-bar {
+      height: 3px;
+      background: var(--auth-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .auth-strength-fill {
+      height: 100%;
+      border-radius: 2px;
+      width: 0;
+      transition: width .3s, background .3s;
+    }
+    .auth-strength-label {
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--auth-muted);
+      margin-top: 4px;
+      font-weight: 600;
+    }
+  </style>
+  <!-- ═══ END AUTH MODULE CSS ═══ -->
+</head>
+<body style="margin:0;background:#0c0c0e;">
+
+  <!-- ══════════════════════════════════════════════════════════
+       AUTH MODULE HTML  —  kopiere dieses <div> in dein Projekt
+       ══════════════════════════════════════════════════════════ -->
+  <div id="auth-overlay">
+    <div class="auth-card" id="auth-card-root">
+
+      <!-- Branding — anpassen nach Bedarf -->
+      <h1 class="auth-logo">My<span>App</span></h1>
+      <p class="auth-subtitle">Konto-Verwaltung</p>
+
+      <!-- Logged-in state -->
+      <div id="auth-logged-in" class="auth-welcome" style="display:none;">
+        <div class="auth-welcome-avatar" id="auth-avatar">?</div>
+        <h2 id="auth-welcome-name">Willkommen!</h2>
+        <p id="auth-welcome-email">—</p>
+        <div class="auth-user-card" id="auth-user-detail"></div>
+        <button class="auth-logout-btn" onclick="AuthModule.logout()">Abmelden</button>
+      </div>
+
+      <!-- Auth forms -->
+      <div id="auth-forms">
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tab-login"    onclick="AuthModule.switchTab('login')">Anmelden</button>
+          <button class="auth-tab"        id="tab-register" onclick="AuthModule.switchTab('register')">Registrieren</button>
+        </div>
+
+        <div class="auth-message" id="auth-global-msg"></div>
+
+        <!-- ── LOGIN ── -->
+        <div class="auth-panel active" id="panel-login">
+          <div class="auth-field">
+            <label class="auth-label" for="login-email">E-Mail</label>
+            <input class="auth-input" type="email" id="login-email" placeholder="name@beispiel.de" autocomplete="email" />
+            <span class="auth-field-error" id="login-email-err"></span>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="login-password">Passwort</label>
+            <div class="auth-pw-wrap">
+              <input class="auth-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+              <button class="auth-pw-toggle" tabindex="-1" onclick="AuthModule.togglePw('login-password',this)" aria-label="Passwort anzeigen">
+                <svg id="eye-icon-login" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <span class="auth-field-error" id="login-password-err"></span>
+          </div>
+          <button class="auth-btn" id="login-btn" onclick="AuthModule.login()">
+            <span class="auth-btn-text">Anmelden</span>
+            <div class="auth-spinner"></div>
+          </button>
+          <p class="auth-hint">Noch kein Konto? <a href="#" onclick="AuthModule.switchTab('register');return false;">Jetzt registrieren</a></p>
+        </div>
+
+        <!-- ── REGISTER ── -->
+        <div class="auth-panel" id="panel-register">
+          <div class="auth-row">
+            <div class="auth-field">
+              <label class="auth-label" for="reg-vorname">Vorname</label>
+              <input class="auth-input" type="text" id="reg-vorname" placeholder="Max" autocomplete="given-name" />
+              <span class="auth-field-error" id="reg-vorname-err"></span>
+            </div>
+            <div class="auth-field">
+              <label class="auth-label" for="reg-nachname">Nachname</label>
+              <input class="auth-input" type="text" id="reg-nachname" placeholder="Mustermann" autocomplete="family-name" />
+              <span class="auth-field-error" id="reg-nachname-err"></span>
+            </div>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="reg-dob">Geburtsdatum <span style="color:var(--auth-muted);font-weight:400">(mind. 18 Jahre)</span></label>
+            <input class="auth-input" type="date" id="reg-dob" autocomplete="bday" />
+            <span class="auth-field-error" id="reg-dob-err"></span>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="reg-email">E-Mail</label>
+            <input class="auth-input" type="email" id="reg-email" placeholder="name@beispiel.de" autocomplete="email" />
+            <span class="auth-field-error" id="reg-email-err"></span>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="reg-password">Passwort</label>
+            <div class="auth-pw-wrap">
+              <input class="auth-input" type="password" id="reg-password" placeholder="Mindestens 8 Zeichen" autocomplete="new-password" oninput="AuthModule.checkStrength(this.value)" />
+              <button class="auth-pw-toggle" tabindex="-1" onclick="AuthModule.togglePw('reg-password',this)" aria-label="Passwort anzeigen">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <span class="auth-field-error" id="reg-password-err"></span>
+          </div>
+          <div class="auth-strength-wrap">
+            <div class="auth-strength-bar"><div class="auth-strength-fill" id="str-fill"></div></div>
+            <div class="auth-strength-label" id="str-label"></div>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="reg-password2">Passwort bestätigen</label>
+            <div class="auth-pw-wrap">
+              <input class="auth-input" type="password" id="reg-password2" placeholder="Passwort wiederholen" autocomplete="new-password" />
+              <button class="auth-pw-toggle" tabindex="-1" onclick="AuthModule.togglePw('reg-password2',this)" aria-label="Passwort anzeigen">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <span class="auth-field-error" id="reg-password2-err"></span>
+          </div>
+          <button class="auth-btn" id="register-btn" onclick="AuthModule.register()">
+            <span class="auth-btn-text">Konto erstellen</span>
+            <div class="auth-spinner"></div>
+          </button>
+          <p class="auth-hint">Bereits registriert? <a href="#" onclick="AuthModule.switchTab('login');return false;">Anmelden</a></p>
+        </div>
+      </div><!-- /auth-forms -->
+    </div>
+  </div>
+  <!-- ══ END AUTH MODULE HTML ══ -->
+
+
+  <!-- ══════════════════════════════════════════════════════════
+       AUTH MODULE JS  —  kopiere dieses <script> in dein Projekt
+       ══════════════════════════════════════════════════════════ -->
+  <script id="auth-module-script">
+  /**
+   * ┌─────────────────────────────────────────────────────────┐
+   * │  AuthModule  —  drop-in Login / Registrierungs-Modul    │
+   * │                                                         │
+   * │  Verwendung:                                            │
+   * │  AuthModule.init()  – beim Seitenload aufrufen          │
+   * │  AuthModule.onLogin  = (user) => { ... }  – Callback    │
+   * │  AuthModule.onLogout = () => { ... }       – Callback   │
+   * └─────────────────────────────────────────────────────────┘
+   */
+  const AuthModule = (() => {
+    const STORAGE_KEY   = 'auth_users';
+    const SESSION_KEY   = 'auth_session';
+
+    /* ── Helpers: Storage ── */
+    const getUsers    = () => JSON.parse(localStorage.getItem(STORAGE_KEY)  || '{}');
+    const saveUsers   = u  => localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+    const getSession  = () => JSON.parse(localStorage.getItem(SESSION_KEY)  || 'null');
+    const saveSession = s  => localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    const clearSession= () => localStorage.removeItem(SESSION_KEY);
+
+    /* ── Helpers: Password hashing (simple, client-side) ── */
+    const hashPw = async (pw) => {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    };
+
+    /* ── Helpers: Age check ── */
+    const calcAge = (dob) => {
+      const today = new Date(), birth = new Date(dob);
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      return age;
+    };
+
+    /* ── Helpers: DOM ── */
+    const $ = id => document.getElementById(id);
+    const showErr = (id, msg) => { $(id).textContent = msg; $(id).classList.add('show'); $(`${id.replace('-err','')}`)?.classList.add('error'); };
+    const clearErr= (id)      => { $(id).classList.remove('show'); $(`${id.replace('-err','')}`)?.classList.remove('error'); };
+    const clearAllErrors = () => {
+      ['login-email','login-password','reg-vorname','reg-nachname','reg-dob','reg-email','reg-password','reg-password2']
+        .forEach(id => clearErr(id+'-err'));
+    };
+    const showMsg = (msg, type='error') => {
+      const el = $('auth-global-msg');
+      el.textContent = msg; el.className = `auth-message show ${type}`;
+    };
+    const hideMsg = () => { $('auth-global-msg').className = 'auth-message'; };
+
+    const setBtnLoading = (id, on) => {
+      const btn = $(id);
+      btn.disabled = on;
+      btn.classList.toggle('loading', on);
+    };
+
+    /* ── Simulated async delay (UX feel) ── */
+    const delay = ms => new Promise(r => setTimeout(r, ms));
+
+    /* ── Public callbacks ── */
+    let onLogin  = () => {};
+    let onLogout = () => {};
+
+    /* ── Render logged-in state ── */
+    const renderLoggedIn = (user) => {
+      $('auth-forms').style.display = 'none';
+      $('auth-logged-in').style.display = 'block';
+      $('auth-avatar').textContent = user.vorname[0].toUpperCase() + user.nachname[0].toUpperCase();
+      $('auth-welcome-name').textContent = `Hallo, ${user.vorname}!`;
+      $('auth-welcome-email').textContent = user.email;
+      $('auth-user-detail').innerHTML = `
+        <div class="auth-user-row"><span class="auth-user-key">Name</span><span class="auth-user-val">${user.vorname} ${user.nachname}</span></div>
+        <div class="auth-user-row"><span class="auth-user-key">E-Mail</span><span class="auth-user-val">${user.email}</span></div>
+        <div class="auth-user-row"><span class="auth-user-key">Alter</span><span class="auth-user-val">${calcAge(user.dob)} Jahre</span></div>
+        <div class="auth-user-row"><span class="auth-user-key">Mitglied seit</span><span class="auth-user-val">${new Date(user.createdAt).toLocaleDateString('de-DE')}</span></div>
+      `;
+    };
+
+    /* ── Init ── */
+    const init = () => {
+      const session = getSession();
+      if (session) {
+        const users = getUsers();
+        const user  = users[session.email];
+        if (user) { renderLoggedIn(user); onLogin(user); }
+      }
+      // Set max date for birthday (today)
+      const today = new Date().toISOString().split('T')[0];
+      $('reg-dob') && ($('reg-dob').max = today);
+    };
+
+    /* ── Tab switch ── */
+    const switchTab = (tab) => {
+      hideMsg(); clearAllErrors();
+      ['login','register'].forEach(t => {
+        $(`tab-${t}`).classList.toggle('active', t===tab);
+        $(`panel-${t}`).classList.toggle('active', t===tab);
+      });
+    };
+
+    /* ── Toggle password visibility ── */
+    const togglePw = (inputId, btn) => {
+      const input = $(inputId);
+      const show  = input.type === 'password';
+      input.type  = show ? 'text' : 'password';
+      btn.querySelector('svg').innerHTML = show
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    };
+
+    /* ── Password strength ── */
+    const checkStrength = (pw) => {
+      const fill  = $('str-fill');
+      const label = $('str-label');
+      if (!pw) { fill.style.width='0'; label.textContent=''; return; }
+      let score = 0;
+      if (pw.length >= 8)  score++;
+      if (pw.length >= 12) score++;
+      if (/[A-Z]/.test(pw)) score++;
+      if (/[0-9]/.test(pw)) score++;
+      if (/[^A-Za-z0-9]/.test(pw)) score++;
+      const levels = [
+        { w:'16%',  bg:'#e07070', t:'Sehr schwach' },
+        { w:'32%',  bg:'#e09040', t:'Schwach' },
+        { w:'55%',  bg:'#c9a96e', t:'Mittel' },
+        { w:'78%',  bg:'#80c0a0', t:'Stark' },
+        { w:'100%', bg:'#6ecaa0', t:'Sehr stark' },
+      ];
+      const lvl = levels[Math.min(score, 4)];
+      fill.style.width = lvl.w; fill.style.background = lvl.bg;
+      label.textContent = lvl.t; label.style.color = lvl.bg;
+    };
+
+    /* ── LOGIN ── */
+    const login = async () => {
+      hideMsg(); clearAllErrors();
+      const email = $('login-email').value.trim();
+      const pw    = $('login-password').value;
+      let valid   = true;
+
+      if (!email) { showErr('login-email-err','Bitte E-Mail eingeben.'); valid=false; }
+      if (!pw)    { showErr('login-password-err','Bitte Passwort eingeben.'); valid=false; }
+      if (!valid) return;
+
+      setBtnLoading('login-btn', true);
+      await delay(600);
+
+      const users = getUsers();
+      const user  = users[email.toLowerCase()];
+      if (!user) {
+        showMsg('Kein Konto mit dieser E-Mail-Adresse gefunden.');
+        setBtnLoading('login-btn', false); return;
+      }
+      const hash = await hashPw(pw);
+      if (hash !== user.pwHash) {
+        showMsg('Falsches Passwort. Bitte erneut versuchen.');
+        $('login-password').classList.add('error');
+        setBtnLoading('login-btn', false); return;
+      }
+
+      saveSession({ email: user.email });
+      setBtnLoading('login-btn', false);
+      renderLoggedIn(user);
+      onLogin(user);
+    };
+
+    /* ── REGISTER ── */
+    const register = async () => {
+      hideMsg(); clearAllErrors();
+      const vorname  = $('reg-vorname').value.trim();
+      const nachname = $('reg-nachname').value.trim();
+      const dob      = $('reg-dob').value;
+      const email    = $('reg-email').value.trim().toLowerCase();
+      const pw       = $('reg-password').value;
+      const pw2      = $('reg-password2').value;
+      let valid      = true;
+
+      if (!vorname)  { showErr('reg-vorname-err','Vorname ist erforderlich.');  valid=false; }
+      if (!nachname) { showErr('reg-nachname-err','Nachname ist erforderlich.'); valid=false; }
+
+      if (!dob) {
+        showErr('reg-dob-err','Geburtsdatum ist erforderlich.'); valid=false;
+      } else {
+        const age = calcAge(dob);
+        if (isNaN(age) || age < 0) {
+          showErr('reg-dob-err','Ungültiges Datum.'); valid=false;
+        } else if (age < 18) {
+          showErr('reg-dob-err',`Du bist ${age} Jahr${age===1?'':'e'} alt. Registrierung erst ab 18 Jahren möglich.`);
+          valid=false;
+        }
+      }
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showErr('reg-email-err','Bitte gültige E-Mail eingeben.'); valid=false;
+      }
+
+      if (pw.length < 8)   { showErr('reg-password-err','Passwort muss mind. 8 Zeichen haben.'); valid=false; }
+      if (pw !== pw2)       { showErr('reg-password2-err','Passwörter stimmen nicht überein.'); valid=false; }
+      if (!valid) return;
+
+      setBtnLoading('register-btn', true);
+      await delay(700);
+
+      const users = getUsers();
+      if (users[email]) {
+        showMsg('Diese E-Mail-Adresse ist bereits registriert.');
+        $('reg-email').classList.add('error');
+        setBtnLoading('register-btn', false); return;
+      }
+
+      const pwHash = await hashPw(pw);
+      const newUser = { vorname, nachname, dob, email, pwHash, createdAt: new Date().toISOString() };
+      users[email] = newUser;
+      saveUsers(users);
+      saveSession({ email });
+
+      setBtnLoading('register-btn', false);
+      renderLoggedIn(newUser);
+      onLogin(newUser);
+    };
+
+    /* ── LOGOUT ── */
+    const logout = () => {
+      clearSession();
+      // Alle Felder leeren
+      ['login-email','login-password',
+       'reg-vorname','reg-nachname','reg-dob','reg-email','reg-password','reg-password2']
+        .forEach(id => { const el = $(id); if (el) el.value = ''; });
+      // Passwortstärke zurücksetzen
+      const fill = $('str-fill'), label = $('str-label');
+      if (fill)  { fill.style.width = '0'; fill.style.background = ''; }
+      if (label) { label.textContent = ''; label.style.color = ''; }
+      $('auth-logged-in').style.display = 'none';
+      $('auth-forms').style.display = 'block';
+      switchTab('login');
+      onLogout();
+    };
+
+    /* Public API */
+    return {
+      init, switchTab, login, register, logout,
+      togglePw, checkStrength,
+      get onLogin()  { return onLogin;  },
+      set onLogin(fn){ onLogin  = fn;   },
+      get onLogout() { return onLogout; },
+      set onLogout(fn){ onLogout = fn;  },
+    };
+  })();
+
+  /* ── Callbacks — hier deine App-Logik einhängen ── */
+  AuthModule.onLogin  = (user) => {
+    console.log('✅ Eingeloggt als:', user.email);
+    // Hier: deine App laden / anzeigen
+  };
+  AuthModule.onLogout = () => {
+    console.log('👋 Abgemeldet');
+    // Hier: App zurücksetzen / ausblenden
+  };
+
+  /* ── Modul starten ── */
+  AuthModule.init();
+  </script>
+  <!-- ══ END AUTH MODULE JS ══ -->
+
+</body>
+</html>
